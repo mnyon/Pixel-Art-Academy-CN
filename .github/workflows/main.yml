@@ -1,0 +1,62 @@
+name: 全平台打包 (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（如 v1.0.0）'
+        required: true
+        default: 'v1.0.0'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      # ---------- 基础环境 ----------
+      - name: 安装 Meteor 2.16
+        run: |
+          curl https://install.meteor.com/ | sh
+          export PATH=$PATH:$HOME/.meteor
+          meteor update --release 2.16
+
+      - name: 安装 meteor-desktop（Retronator 分支）
+        run: |
+          cd ..
+          git clone https://github.com/Retronator/meteor-desktop.git
+          cd meteor-desktop
+          npm install
+          npm link
+          echo "$HOME/.meteor" >> $GITHUB_PATH
+
+      # ---------- 项目依赖 & 初始化 ----------
+      - name: 项目依赖
+        run: |
+          meteor npm install
+          meteor-desktop init
+
+      # ---------- 打 Windows 绿色版 ----------
+      - name: 构建 Windows
+        run: |
+          export METEOR_ALLOW_SUPERUSER=1
+          meteor-desktop build . --win
+      - name: 打包 Windows
+        run: |
+          cd .meteor-desktop/dist/bundled
+          zip -r ../../../PixelArtAcademy-win-x64.zip win32-x64/
+
+      # ---------- 上传到 Release ----------
+      - name: 发布 Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          name:  Release ${{ github.event.inputs.version }}
+          body: |
+            自动构建的全平台绿色版：
+            - Windows (win32-x64)
+          files: |
+            PixelArtAcademy-win-x64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
